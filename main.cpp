@@ -1,21 +1,37 @@
 #include "graph.hpp"
+#include "driver.hpp"
+#include <fstream>
 
-int main()
+int main(int argc, char** argv)
 {
-    graph::Graph<int, int> kgraph {{1,2},{1,3},{2,3},{2,4},{3,4}};
+    if (argc != 2)
+    {
+        std::cout << "Correct usage example: ./Graph <filename>" << std::endl;
+        return 0;
+    }
 
-    kgraph.FillData(1, 123);
-    kgraph.FillData(2, 71);
-    kgraph.FillData(3, 216);
-    kgraph.FillData(4, 584);
+    std::fstream fEdges {argv[1], std::ios::in};
 
-    kgraph.FillData({1, 4}, 584);
-    kgraph.FillData({1, 2}, 212);
-    kgraph.FillData({1, 3}, 754);
-    kgraph.FillData({4, 2}, 1000);
-    kgraph.FillData({5, 7}, 12000);
+    if (!fEdges.is_open())
+    {
+        std::cout << "Couldn't open file." << std::endl;
+        return 0;
+    }
 
+    std::streambuf* cin_buff = std::cin.rdbuf();
+    std::cin.rdbuf (fEdges.rdbuf());
 
+    yy::Driver driver;
+
+    try { driver.parse(); }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+
+    std::cin.rdbuf (cin_buff);
+
+    graph::Graph<int, int> kgraph (driver.begin(), driver.end());
     kgraph.Dump();
 
     return 0;

@@ -2,6 +2,7 @@
 #include <vector>
 #include <array>
 #include <iostream>
+#include <iomanip>
 
 namespace graph
 {
@@ -48,7 +49,7 @@ namespace graph
 			Table.resize(v_count);
 
 			if constexpr (is_edge_data<typename std::iterator_traits<Iter>::value_type>)
-				Edata.reserve(2 * std::distance(begin, end));
+				Edata.reserve(std::distance(begin, end));
 
 			for (auto it = begin; it != end; ++it)
 			{
@@ -56,7 +57,7 @@ namespace graph
 				AddEdge(std::get<1>(*it), GetVIndex(std::get<1>(*it)));
 
 				if constexpr (is_edge_data<typename std::iterator_traits<Iter>::value_type>)
-					FillData(*it);
+					Edata.push_back(std::get<2>(*it));
 			}
 		}
 
@@ -80,20 +81,15 @@ namespace graph
 		void FillData(const std::pair<int, int>& edge, const EL& edata) noexcept
 		{
 			if (Edata.empty())
-				Edata.resize(Table.size() - vertices.size());
+				Edata.resize((Table.size() - vertices.size()) / 2);
 
 			if (int it = GetEIndex(edge); it != -1)
 				Edata[it] = edata;
 		}
 
-		// breadth search
-		void BFS();
-		// depth search
-		void DFS();
-
 		int GetEIndex(const std::pair<int, int>& edge) const 
 		{
-			for (size_t it = vertices.size(); it < Table.size(); ++it)
+			for (size_t it = vertices.size(); it < Table.size(); it += 2)
 			{
 				if (Table[it][0] 	 == edge.first && 
 					Table[it ^ 1][0] == edge.second)
@@ -115,22 +111,22 @@ namespace graph
 
 		void Dump() const
 		{
-			PrintTable();
 			PrintVertices();
 			PrintEdges();
+			PrintTable();
 		}
 
 		void PrintTable() const
 		{
 			for (size_t i = 0; i < Table.size(); ++i)
-				std::cout << i << '\t';
+				std::cout << i << std::setw(6);
 
 			std::cout << '\n';
 
 			for (size_t j = 0; j < 3; ++j)
 			{
 				for (size_t i = 0; i < Table.size(); ++i)
-					std::cout << Table[i][j] << '\t';
+					std::cout << Table[i][j] << std::setw(6);
 
 				std::cout << '\n';
 			}
@@ -156,9 +152,9 @@ namespace graph
 		{
 			if (!Edata.empty())
 			{
-				for (size_t it = vertices.size(); it < Table.size(); ++it)
+				for (size_t it = vertices.size(), eit = 0; it < Table.size(); it += 2, eit++)
 					std::cout << "({"  << Table[it][0] << ", " << Table[it ^ 1][0] 
-							  << "}, " << Edata[it - vertices.size()] << ") ";
+							  << "}, " << Edata[eit] << ") ";
 			}
 			else 
 			{
@@ -168,6 +164,11 @@ namespace graph
 
 			std::cout << '\n';
 		}
+
+		// breadth search
+		void BFS();
+		// depth search
+		void DFS();
 
 	private:
 		void AddEdge (int vert, int index) noexcept
