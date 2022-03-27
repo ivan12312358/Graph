@@ -250,7 +250,7 @@ namespace graph
 			if (Table.empty())
 				return 0;
 
-			colors.reserve(vertices.size());
+			colors.resize(vertices.size());
 			int edge{};
 
 			for (size_t it = 0, itt = vertices.size(); it != itt; ++it)
