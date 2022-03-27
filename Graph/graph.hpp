@@ -3,9 +3,7 @@
 #include <array>
 #include <iostream>
 #include <iomanip>
-
-//TODO	GetVcolor()
-//		IsSameColors()
+#include <deque>
 
 namespace graph
 {
@@ -55,6 +53,8 @@ namespace graph
 		std::vector<std::array<int, 3>> Table;
 		std::vector<EL> Edata;
 		std::vector<VL> Vdata;
+		std::vector<Color> colors;
+		int offset;
 
 	public:
 		Graph () = default;
@@ -77,6 +77,7 @@ namespace graph
 			}
 
 			Table.resize(v_count);
+			offset = (v_count % 2) == 0 ? 0 : 2;
 
 			if constexpr (is_edge_data<typename std::iterator_traits<Iter>::value_type>)
 				Edata.reserve(std::distance(begin, end));
@@ -119,12 +120,10 @@ namespace graph
 
 		int GetEIndex(const std::pair<int, int>& edge) const
 		{
-			static int offset = (vertices.size() % 2) == 0 ? 0 : 2;
-
 			for (size_t it = vertices.size(); it < Table.size(); it += 2)
 			{
 				if (Table[it][0] 	 			== edge.first && 
-					Table[(it ^ 1) + offset][0] == edge.second)
+					Table[GetAdjacentEdge(it)][0] == edge.second)
 					return it - vertices.size();
 			}
 
@@ -182,54 +181,98 @@ namespace graph
 
 		void PrintEdges() const
 		{
-			int offset = (vertices.size() % 2) == 0 ? 0 : 2;
-
 			if (!Edata.empty())
 			{
 				for (size_t it = vertices.size(), eit = 0; it < Table.size(); it += 2, eit++)
-					std::cout << "({"  << Table[it][0] << ", " << Table[(it ^ 1) + offset][0] 
+					std::cout << "({"  << Table[it][0] << ", " << Table[GetAdjacentEdge(it)][0] 
 							  << "}, " << Edata[eit] << ") ";
 			}
 			else 
 			{
 				for (size_t it = vertices.size(); it < Table.size(); it += 2)
-					std::cout << "{"  << Table[it][0] << ", " << Table[(it ^ 1) + offset][0] << "} ";
+					std::cout << "{"  << Table[it][0] << ", " << Table[GetAdjacentEdge(it)][0] << "} ";
 			}
 
 			std::cout << std::endl;
 		}
 
-		void BFS();
+		int Distance(int vstart, int vend) const
+		{
+			if (GetVIndex(vstart) == -1 || GetVIndex(vend) == -1)
+				return -1;
+
+			std::vector<int> dist(vertices.size(), -1);
+			dist[GetVIndex(vstart)] = 0;
+
+			std::deque<int> verts;
+			verts.push_back(vstart);
+
+			std::vector<int> adjacentv;
+			int vcurr{};
+
+			while (!verts.empty())
+			{
+				vcurr = verts.front();
+				verts.pop_front();
+
+				adjacentv = FindAdjacentVerts(vcurr);
+
+				for (auto&& vert: adjacentv)
+				{
+					if (dist[GetVIndex(vert)] == -1)
+					{
+						verts.push_back(vert);
+						dist[GetVIndex(vert)] = dist[GetVIndex(vcurr)] + 1;
+					}
+				}
+			}
+
+			return dist[GetVIndex(vend)];
+		}
+
+		std::vector<int> FindAdjacentVerts(int vert) const
+		{
+			std::vector<int> adjacentv;
+
+			int curredge = Table[GetVIndex(vert)][1];
+
+			while (curredge >= vertices.size())
+			{
+				adjacentv.push_back(Table[GetAdjacentEdge(curredge)][0]);
+				curredge = Table[curredge][1];
+			}
+
+			return adjacentv;
+		}
 
 		bool IsBipartite()
 		{
 			if (Table.empty())
 				return 0;
 
-			std::vector<Color> colors(vertices.size());
+			colors.reserve(vertices.size());
 			int edge{};
 
 			for (size_t it = 0, itt = vertices.size(); it != itt; ++it)
 			{
 				edge = Table[it][1];
 
-				if (!Painted(colors, Table[edge][0]))
-					if (PaintGraph(colors, edge) == 0)
+				if (!Painted(Table[edge][0]))
+					if (PaintGraph(edge) == 0)
 						return 0;
 			}
-
-			auto cit = colors.begin();
-
-			for (auto&& vit = vertices.begin(), vitt = vertices.end(); vit != vitt; ++vit, ++cit)
-				std::cout << vit->first << ' ' << *cit << ' ';
-
-			std::cout << std::endl;
-
 			return 1;
 		}
 
+		void Coloration()
+		{
+			auto cit = colors.begin();
+			for (auto&& vit = vertices.begin(), vitt = vertices.end(); vit != vitt; ++vit, ++cit)
+				std::cout << vit->first << ' ' << *cit << ' ';
+		}
+
 	private:
-		bool Painted(std::vector<Color>& colors, int vert)
+		bool Painted(int vert) const
 		{
 			if (int it = GetVIndex(vert); it != -1)
 				return colors[it] != Color::colorless;
@@ -237,11 +280,9 @@ namespace graph
 			return 0;
 		}
 
-		bool PaintGraph(std::vector<Color>& colors, int edge)
+		bool PaintGraph(int edge)
 		{
-			static int offset = (vertices.size() % 2) == 0 ? 0 : 2;
-
-			Color vcolor = Color::blue, nxtcolor;
+			Color vcolor = Color::blue;
 			int nxtedge{}, fstedge = Table[edge][2];
 
 			std::vector<int> prevedge;
@@ -251,23 +292,25 @@ namespace graph
 			{
 				prevedge.push_back(edge);
 
-				if (!Painted(colors, Table[edge][0]))
+				if (!Painted(Table[edge][0]))
 				{
-					Paint(colors, Table[edge][0], vcolor);
+					Paint(Table[edge][0], vcolor);
 					SwitchColor(vcolor);
 				}
-				
-				if ((edge ^ 1) + offset < Table.size())
-				{
-					nxtedge = (edge ^ 1) + offset;
 
-					if (Painted(colors, Table[nxtedge][0]))
+				nxtedge = GetAdjacentEdge(edge);
+				
+				if (nxtedge < Table.size())
+				{
+					if (Painted(Table[nxtedge][0]))
 					{
-						if (Table[edge][2] == fstedge || Table[edge][1] == fstedge)
+						if (GetVColor(Table[nxtedge][0]) != vcolor)
+							return 0;
+						else if (Table[edge][1] == fstedge)
 							return GetVColor(Table[edge][0]) != vcolor;
 					}
 					else if (Table[nxtedge][1] < vertices.size())
-						Paint(colors, Table[nxtedge][0], vcolor);
+						Paint(Table[nxtedge][0], vcolor);
 					else 
 					{
 						edge = Table[nxtedge][1];
@@ -281,25 +324,33 @@ namespace graph
 			}
 		}
 
-		int GetPrevEdge(std::vector<int>& prevedge)
+		int GetAdjacentEdge(int edge) const
+		{
+			if (edge % 2 == 0)
+				return (edge ^ 1) - offset;
+			else
+				return (edge ^ 1) + offset;
+		}
+
+		int GetPrevEdge(std::vector<int>& prevedge) const
 		{
 			int edge{};
 
 			while (!prevedge.empty())
 			{
 				edge = prevedge.back();
+				prevedge.pop_back();
 
-				if (Table[edge][1] < vertices.size())
-					prevedge.pop_back();
-				else return Table[edge][1];
+				if (Table[edge][1] >= vertices.size())
+					return Table[edge][1];
 			}
 
 			return edge;
 		}
 
-		void Paint(std::vector<Color>& colors, int vert, Color color) { colors[GetVIndex(vert)] = color; }
+		void Paint(int vert, Color color) { colors[GetVIndex(vert)] = color; }
 
-		Color GetVColor(std::vector<Color>& colors, int vert) { return colors[GetVIndex(vert)]; }
+		Color GetVColor(int vert) const { return colors[GetVIndex(vert)]; }
 
 		void AddEdge (int vert) noexcept
 		{
